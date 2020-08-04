@@ -24,7 +24,7 @@
 
 #include <stdlib.h>
 
-void print_ebitmap(ebitmap_t * bitmap, FILE * fp)
+void print_ebitmap(const ebitmap_t * bitmap, FILE * fp)
 {
 	uint32_t i;
 	for (i = 0; i < bitmap->highbit; i++) {
