@@ -33,6 +33,9 @@ if len(sys.argv) > 1 and sys.argv[1] == "-v":
     verbose = 1
 
 for arg in sys.argv[1:]:
+    if arg == '-v':
+        continue
+
     f = open(arg, 'r')
     for line in f:
         if line.startswith('#'):

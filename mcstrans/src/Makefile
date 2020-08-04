@@ -11,18 +11,21 @@ ifeq ($(LIBSEPOLA),)
         LDLIBS_LIBSEPOLA := -l:libsepol.a
 endif
 
-PROG_SRC=mcstrans.c  mcscolor.c  mcstransd.c  mls_level.c
+PROG_SRC=mcstrans.c  mcscolor.c  mcstransd.c  mls_level.c util.c constraints.c
 PROG_OBJS= $(patsubst %.c,%.o,$(PROG_SRC))
 PROG=mcstransd
 INITSCRIPT=mcstrans
-CFLAGS ?= -Wall -W -Wundef -Wmissing-noreturn -Wmissing-format-attribute
+CFLAGS ?= -Wall -Wextra \
+		  -Wundef -Wmissing-noreturn -Wmissing-format-attribute -Wformat-signedness -Wformat=2 \
+		  -Wduplicated-cond -Wduplicated-branches -Wlogical-op -Wrestrict -Wnull-dereference -Wdouble-promotion \
+		  -Wwrite-strings -Wcast-qual
 
 all: $(PROG)
 
 $(PROG): $(PROG_OBJS) $(LIBSEPOLA)
 	$(CC) $(LDFLAGS) -pie -o $@ $^ -lselinux -lcap -lpcre $(LDLIBS_LIBSEPOLA)
 
-%.o:  %.c 
+%.o:  %.c
 	$(CC) $(CFLAGS) -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -fPIE -c -o $@ $<
 
 install: all
@@ -33,6 +36,6 @@ install: all
 	test -d $(DESTDIR)$(SYSTEMDDIR)/system || install -m 755 -d $(DESTDIR)$(SYSTEMDDIR)/system
 	install -m 644 mcstrans.service $(DESTDIR)$(SYSTEMDDIR)/system/
 
-clean: 
+clean:
 	-rm -f $(OBJS) $(LOBJS) $(TARGET) $(PROG) $(PROG_OBJS) *~ \#*
 

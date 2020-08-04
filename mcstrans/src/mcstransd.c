@@ -1,4 +1,5 @@
 /* Copyright (c) 2006 Trusted Computer Solutions, Inc. */
+
 #include <errno.h>
 #include <poll.h>
 #include <signal.h>
@@ -16,43 +17,20 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <sys/un.h>
-#include "mcstrans.h"
 
-#ifdef UNUSED
-#elif defined(__GNUC__)
-# define UNUSED(x) UNUSED_ ## x __attribute__((unused))
-#elif defined(__LCLINT__)
-# define UNUSED(x) /*@unused@*/ x
-#else
-# define UNUSED(x) x
-#endif
+#include "mcstrans.h"
+#include "mcscolor.h"
+
+#include "util.h"
 
 #define SETRANS_UNIX_SOCKET "/var/run/setrans/.setrans-unix"
 
-#define SETRANS_INIT			1
-#define RAW_TO_TRANS_CONTEXT		2
-#define TRANS_TO_RAW_CONTEXT		3
-#define RAW_CONTEXT_TO_COLOR		4
-#define MAX_DATA_BUF			4096
-#define MAX_DESCRIPTORS			8192
-
-#ifdef DEBUG
-//#define log_debug(fmt, ...) syslog(LOG_DEBUG, fmt, __VA_ARGS__)
-#define log_debug(fmt, ...) fprintf(stderr, fmt, __VA_ARGS__)
-#else
-#define log_debug(fmt, ...) ;
-#endif
-
-extern int init_translations(void);
-extern void finish_context_translations(void);
-extern int trans_context(const char *, char **);
-extern int untrans_context(const char *, char **);
-
-extern int init_colors(void);
-extern void finish_context_colors(void);
-extern int raw_color(const char *, char **);
-
-#define SETRANSD_PATHNAME "/sbin/mcstransd"
+#define SETRANS_INIT         1
+#define RAW_TO_TRANS_CONTEXT 2
+#define TRANS_TO_RAW_CONTEXT 3
+#define RAW_CONTEXT_TO_COLOR 4
+#define MAX_DATA_BUF 4096
+#define MAX_DESCRIPTORS 8192
 
 /* name of program (for error messages) */
 #define SETRANSD_PROGNAME "mcstransd"
@@ -62,7 +40,7 @@ static int sockfd = -1;	/* socket we are listening on */
 static volatile int restart_daemon = 0;
 static void cleanup_exit(int ret) __attribute__ ((noreturn));
 static void
-cleanup_exit(int ret) 
+cleanup_exit(int ret)
 {
 	finish_context_colors();
 	finish_context_translations();
@@ -170,7 +148,7 @@ process_request(int fd, uint32_t function, char *data1, char *UNUSED(data2))
 	if (result) {
 		pid_t pid = 0;
 		get_peer_pid(fd, &pid);
-		syslog(LOG_ERR, "Invalid request func=%d from=%u",
+		syslog(LOG_ERR, "Invalid request func=%u from=%d",
 		       function, pid);
 	}
 
@@ -220,13 +198,13 @@ service_request(int fd)
 
 	data1 = malloc(data1_size);
 	if (!data1) {
-		log_debug("Could not allocate %d bytes\n", data1_size);
-		return -1; 
+		log_debug("Could not allocate %u bytes\n", data1_size);
+		return -1;
 	}
 	data2 = malloc(data2_size);
 	if (!data2) {
 		free(data1);
-		log_debug("Could not allocate %d bytes\n", data2_size);
+		log_debug("Could not allocate %u bytes\n", data2_size);
 		return -1;
 	}
 
@@ -573,12 +551,13 @@ main(int argc, char *argv[])
 		syslog(LOG_ERR, "daemon() failed: %m");
 		cleanup_exit(1);
 	}
+#else
+    (void)do_fork;
 #endif
 
 	syslog(LOG_NOTICE, "%s initialized", argv[0]);
 	process_connections();
 
 	/* we should never get here */
-	return 1;
+	return EXIT_FAILURE;
 }
-

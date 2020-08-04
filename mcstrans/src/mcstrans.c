@@ -1,6 +1,6 @@
-
 /* Copyright (c) 2008-2009 Nall Design Works
-   Copyright 2006 Trusted Computer Solutions, Inc. */
+ * Copyright 2006 Trusted Computer Solutions, Inc.
+ */
 
 /*
  Exported Interface
@@ -9,7 +9,6 @@
  void finish_context_translations(void);
  int trans_context(const char *, char **);
  int untrans_context(const char *, char **);
-
 */
 
 #include <math.h>
@@ -31,22 +30,13 @@
 #include <time.h>
 #include <sys/time.h>
 
-
 #include "mls_level.h"
 #include "mcstrans.h"
+#include "constraints.h"
+#include "util.h"
 
 #define N_BUCKETS 1453
 #define OVECCOUNT (512*3)
-
-#define log_error(fmt, ...) fprintf(stderr, fmt, __VA_ARGS__)
-
-#ifdef DEBUG
-#define log_debug(fmt, ...) fprintf(stderr, fmt, __VA_ARGS__)
-#else
-#define log_debug(fmt, ...) ;
-#endif
-
-static unsigned int maxbit=0;
 
 /* Define data structures */
 typedef struct context_map {
@@ -115,34 +105,14 @@ typedef struct domain {
 
 static domain_t *domains;
 
-typedef struct sens_constraint {
-	char op;
-	char *text;
-	unsigned int sens;
-	ebitmap_t cat;
-	struct sens_constraint *next;
-} sens_constraint_t;
-
-static sens_constraint_t *sens_constraints;
-
-typedef struct cat_constraint {
-	char op;
-	char *text;
-	int nbits;
-	ebitmap_t mask;
-	ebitmap_t cat;
-	struct cat_constraint *next;
-} cat_constraint_t;
-
-static cat_constraint_t *cat_constraints;
-
 unsigned int
 hash(const char *str) {
 	unsigned int hash = 5381;
 	int c;
 
-	while ((c = *(unsigned const char *)str++))
+	while ((c = *(unsigned const char *)str++)) {
 		hash = ((hash << 5) + hash) + c;
+	}
 
 	return hash;
 }
@@ -151,11 +121,15 @@ static int
 add_to_hashtable(context_map_node_t **table, char *key, context_map_t *map) {
 	unsigned int bucket = hash(key) % N_BUCKETS;
 	context_map_node_t **n;
-	for (n = &table[bucket]; *n; n = &(*n)->next)
+	for (n = &table[bucket]; *n; n = &(*n)->next) {
 		;
+	}
+
 	*n = malloc(sizeof(context_map_node_t));
-	if (! *n)
+	if (*n == NULL) {
 		goto err;
+	}
+
 	(*n)->key = key;
 	(*n)->map = map;
 	(*n)->next = NULL;
@@ -163,89 +137,6 @@ add_to_hashtable(context_map_node_t **table, char *key, context_map_t *map) {
 err:
 	syslog(LOG_ERR, "add_to_hashtable: allocation error");
 	return -1;
-}
-
-static int
-numdigits(unsigned int n)
-{
-	int count = 1;
-	while ((n = n / 10))
-		count++;
-	return count;
-}
-
-static int
-parse_category(ebitmap_t *e, const char *raw, int allowinverse)
-{
-	int inverse = 0;
-	unsigned int low, high;
-	while (*raw) {
-		if (allowinverse && *raw == '~') {
-			inverse = !inverse;
-			raw++;
-			continue;
-		}
-		if (sscanf(raw,"c%u", &low) != 1)
-			return -1;
-		raw += numdigits(low) + 1;
-		if (*raw == '.') {
-			raw++;
-			if (sscanf(raw,"c%u", &high) != 1)
-				return -1;
-			raw += numdigits(high) + 1;
-		} else {
-			high = low;
-		}
-		while (low <= high) {
-			if (low >= maxbit)
-				maxbit = low + 1;
-			if (ebitmap_set_bit(e, low, inverse ? 0 : 1) < 0)
-				return -1;
-			low++;
-		}
-		if (*raw == ',') {
-			raw++;
-			inverse = 0;
-		} else if (*raw != '\0') {
-			return -1;
-		}
-	}
-	return 0;
-}
-
-int
-parse_ebitmap(ebitmap_t *e, ebitmap_t *def, const char *raw) {
-	int rc = ebitmap_cpy(e, def);
-	if (rc < 0)
-		return rc;
-	rc = parse_category(e, raw, 1);
-	if (rc < 0)
-		return rc;
-	return 0;
-}
-
-mls_level_t *
-parse_raw(const char *raw) {
-	mls_level_t *mls = calloc(1, sizeof(mls_level_t));
-	if (!mls)
-		goto err;
-	if (sscanf(raw,"s%u", &mls->sens) != 1)
-		goto err;
-	raw += numdigits(mls->sens) + 1;
-	if (*raw == ':') {
-		raw++;
-		if (parse_category(&mls->cat, raw, 0) < 0)
-			goto err;
-	} else if (*raw != '\0') {
-		goto err;
-	}
-
-	return mls;
-
-err:
-	ebitmap_destroy(&mls->cat);
-	free(mls);
-	return NULL;
 }
 
 void
@@ -299,20 +190,25 @@ destroy_group(word_group_t **list, word_group_t *group) {
 			break;
 		}
 	}
+
 	while(group->prefixes) {
 		affix_t *next = group->prefixes->next;
 		free(group->prefixes->text);
 		free(group->prefixes);
 		group->prefixes=next;
 	}
+
 	while(group->suffixes) {
 		affix_t *next = group->suffixes->next;
 		free(group->suffixes->text);
 		free(group->suffixes);
 		group->suffixes=next;
 	}
-	while(group->words)
+
+	while(group->words) {
 		destroy_word(&group->words, group->words);
+	}
+
 	free(group->whitespace);
 	free(group->name);
 	free(group->sword);
@@ -371,6 +267,7 @@ destroy_domain(domain_t *domain) {
 		}
 		domain->trans_to_raw[i] = NULL;
 	}
+
 	for (i=0; i < N_BUCKETS; i++) {
 		context_map_node_t *ptr;
 		for (ptr = domain->raw_to_trans[i]; ptr;)  {
@@ -384,6 +281,7 @@ destroy_domain(domain_t *domain) {
 		}
 		domain->raw_to_trans[i] = NULL;
 	}
+
 	while (domain->base_classifications)  {
 		base_classification_t *next = domain->base_classifications->next;
 		free(domain->base_classifications->trans);
@@ -393,8 +291,9 @@ destroy_domain(domain_t *domain) {
 		domain->base_classifications = next;
 	}
 	pcre_free(domain->base_classification_regexp);
-	while (domain->groups)
+	while (domain->groups) {
 		destroy_group(&domain->groups, domain->groups);
+	}
 	free(domain->name);
 	free(domain);
 
@@ -413,8 +312,9 @@ create_domain(const char *name) {
 	}
 
 	domain_t **d = &domains;
-	for (; *d; d = &(*d)->next)
+	for (; *d; d = &(*d)->next) {
 		;
+	}
 	*d = domain;
 
 	return domain;
@@ -438,169 +338,28 @@ add_word(word_group_t *group, char *raw, char *trans) {
 		destroy_word(&group->words, word);
 		return -1;
 	}
-	if (ebitmap_andnot(&word->normal, &word->cat, &group->def, maxbit) < 0)
+
+	if (ebitmap_andnot(&word->normal, &word->cat, &group->def, maxbit) < 0) {
 		return -1;
+	}
 
 	ebitmap_t temp;
-	if (ebitmap_xor(&temp, &word->cat, &group->def) < 0)
+	if (ebitmap_xor(&temp, &word->cat, &group->def) < 0) {
 		return -1;
-	if (ebitmap_and(&word->inverse, &temp, &group->def) < 0)
+	}
+
+	if (ebitmap_and(&word->inverse, &temp, &group->def) < 0) {
 		return -1;
+	}
+
 	ebitmap_destroy(&temp);
 
 	return 0;
 }
 
-int
-add_constraint(char op, char *raw, char *tok) {
-	log_debug("%s\n", "add_constraint");
-	ebitmap_t empty;
-	ebitmap_init(&empty);
-	if (!raw || !*raw) {
-		syslog(LOG_ERR, "unable to parse line");
-		return -1;
-	}
-	if (*raw == 's') {
-		sens_constraint_t *constraint = calloc(1, sizeof(sens_constraint_t));
-		if (!constraint) {
-			log_error("allocation error %s", strerror(errno));
-			return -1;
-		}
-		if (sscanf(raw,"s%u", &constraint->sens) != 1) {
-			syslog(LOG_ERR, "unable to parse level");
-			free(constraint);
-			return -1;
-		}
-		if (parse_ebitmap(&constraint->cat, &empty, tok) < 0) {
-			syslog(LOG_ERR, "unable to parse cat");
-			free(constraint);
-			return -1;
-		}
-		if (asprintf(&constraint->text, "%s%c%s", raw, op, tok) < 0) {
-			log_error("asprintf failed %s", strerror(errno));
-			return -1;
-		}
-		constraint->op = op;
-		sens_constraint_t **p;
-		for (p= &sens_constraints; *p; p = &(*p)->next)
-                        ;
-                *p = constraint;
-		return 0;
-	} else if (*raw == 'c' ) {
-		cat_constraint_t *constraint = calloc(1, sizeof(cat_constraint_t));
-		if (!constraint) {
-			log_error("allocation error %s", strerror(errno));
-			return -1;
-		}
-		if (parse_ebitmap(&constraint->mask, &empty, raw) < 0) {
-			syslog(LOG_ERR, "unable to parse mask");
-			free(constraint);
-			return -1;
-		}
-		if (parse_ebitmap(&constraint->cat, &empty, tok) < 0) {
-			syslog(LOG_ERR, "unable to parse cat");
-			ebitmap_destroy(&constraint->mask);
-			free(constraint);
-			return -1;
-		}
-		if (asprintf(&constraint->text, "%s%c%s", raw, op, tok) < 0) {
-			log_error("asprintf failed %s", strerror(errno));
-			return -1;
-		}
-		constraint->nbits = ebitmap_cardinality(&constraint->cat);
-		constraint->op = op;
-		cat_constraint_t **p;
-		for (p= &cat_constraints; *p; p = &(*p)->next)
-                        ;
-                *p = constraint;
-		return 0;
-	} else {
-		return -1;
-	}
-	
-	return 0;
-}
-
-int
-violates_constraints(mls_level_t *l) {
-	int nbits;
-	sens_constraint_t *s;
-	ebitmap_t common;
-	for (s=sens_constraints; s; s=s->next) {
-		if (s->sens == l->sens) {
-			if (ebitmap_and(&common, &s->cat, &l->cat) < 0)
-				return 1;
-			nbits = ebitmap_cardinality(&common);
-			ebitmap_destroy(&common);
-			if (nbits) {
-				char *text = mls_level_to_string(l);
-				syslog(LOG_WARNING, "%s violates %s", text, s->text);
-				free(text);
-				return 1;
-			}
-		}
-	}
-	cat_constraint_t *c;
-	for (c=cat_constraints; c; c=c->next) {
-		if (ebitmap_and(&common, &c->mask, &l->cat) < 0)
-			return 1;
-		nbits = ebitmap_cardinality(&common);
-		ebitmap_destroy(&common);
-		if (nbits > 0) {
-			if (ebitmap_and(&common, &c->cat, &l->cat) < 0)
-				return 1;
-			nbits = ebitmap_cardinality(&common);
-			ebitmap_destroy(&common);
-			if ((c->op == '!' && nbits) ||
-			    (c->op == '>' && nbits != c->nbits)) {
-				char *text = mls_level_to_string(l);
-				syslog(LOG_WARNING, "%s violates %s (%d,%d)", text, c->text, nbits, c->nbits);
-				free(text);
-				return 1;
-			}
-		}
-	}
-	return 0;
-}
-
-void
-destroy_sens_constraint(sens_constraint_t **list, sens_constraint_t *constraint) {
-	if (!constraint) {
-		return;
-	}
-	for (; list && *list; list = &(*list)->next) {
-		if (*list == constraint) {
-			*list = constraint->next;
-			break;
-		}
-	}
-	ebitmap_destroy(&constraint->cat);
-	free(constraint->text);
-	memset(constraint, 0, sizeof(sens_constraint_t));
-	free(constraint);
-}
-
-void
-destroy_cat_constraint(cat_constraint_t **list, cat_constraint_t *constraint) {
-	if (!constraint) {
-		return;
-	}
-	for (; list && *list; list = &(*list)->next) {
-		if (*list == constraint) {
-			*list = constraint->next;
-			break;
-		}
-	}
-	ebitmap_destroy(&constraint->mask);
-	ebitmap_destroy(&constraint->cat);
-	free(constraint->text);
-	memset(constraint, 0, sizeof(cat_constraint_t));
-	free(constraint);
-}
-
-
 static int
-add_base_classification(domain_t *domain, char *raw, char *trans) {
+add_base_classification(domain_t *domain, const char *raw, const char *trans) {
+	log_debug("%s (domain = %p, raw = '%s', trans = '%s')\n", __func__, domain, raw, trans);
 	mls_level_t *level = parse_raw(raw);
 	if (level) {
 		base_classification_t **i;
@@ -617,35 +376,41 @@ add_base_classification(domain_t *domain, char *raw, char *trans) {
 		}
 		base_classification->level=level;
 
-		for (i=&domain->base_classifications; *i; i=&(*i)->next)
-		;
-		*i = base_classification;
-			return 0;
+		for (i=&domain->base_classifications; *i; i=&(*i)->next) {
+			;
 		}
+		*i = base_classification;
+		return 0;
+	}
 	log_error(" add_base_classification error %s %s\n", raw, trans);
 	return -1;
 }
 
 static int
-add_cache(domain_t *domain, char *raw, char *trans) {
+add_cache(domain_t *domain, const char *raw, const char *trans) {
 	context_map_t *map = calloc(1, sizeof(context_map_t));
 	if (!map) goto err;
 
 	map->raw = strdup(raw);
 	if (!map->raw) {
+		free(map);
 		goto err;
 	}
 	map->trans = strdup(trans);
 	if (!map->trans) {
+		free(map->raw);
+		free(map->trans);
 		goto err;
 	}
 
 	log_debug(" add_cache (%s,%s)\n", raw, trans);
-	if (add_to_hashtable(domain->raw_to_trans, map->raw, map) < 0)
+	if (add_to_hashtable(domain->raw_to_trans, map->raw, map) < 0) {
 		goto err;
+	}
 
-	if (add_to_hashtable(domain->trans_to_raw, map->trans, map) < 0)
+	if (add_to_hashtable(domain->trans_to_raw, map->trans, map) < 0) {
 		goto err;
+	}
 
 	return 0;
 err:
@@ -657,9 +422,11 @@ static context_map_t *
 find_in_table(context_map_node_t **table, const char *key) {
 	unsigned int bucket = hash(key) % N_BUCKETS;
 	context_map_node_t **n;
-	for (n = &table[bucket]; *n; n = &(*n)->next)
-		if (!strcmp((*n)->key, key))
+	for (n = &table[bucket]; *n; n = &(*n)->next) {
+		if (!strcmp((*n)->key, key)) {
 			return (*n)->map;
+		}
+	}
 	return NULL;
 }
 
@@ -676,8 +443,9 @@ char *
 triml(char *str, const char *whitespace) {
 	char *p = str;
 
-	while (*p && (strchr(whitespace, *p) != NULL))
+	while (*p && (strchr(whitespace, *p) != NULL)) {
 		p++;
+	}
 	return p;
 }
 
@@ -788,8 +556,8 @@ process_trans(char *buffer) {
 	}
 
 	if (!group &&
-	    (!strcmp(raw, "Whitespace") || !strcmp(raw, "Join") ||
-	     !strcmp(raw, "Prefix") || !strcmp(raw, "Suffix") ||
+		(!strcmp(raw, "Whitespace") || !strcmp(raw, "Join") ||
+		 !strcmp(raw, "Prefix") || !strcmp(raw, "Suffix") ||
 		 !strcmp(raw, "Default"))) {
 		syslog(LOG_ERR, "expected  ModifierGroup declaration on line %d", lineno);
 		return -1;
@@ -955,13 +723,13 @@ emit_whitespace(char*buffer, char *whitespace) {
 
 static int
 string_size(const void *p1, const void *p2) {
-	return strlen(*(char **)p2) - strlen(*(char **)p1);
+	return strlen(*(const char * const *)p2) - strlen(*(const char * const *)p1);
 }
 
 static int
 word_size(const void *p1, const void *p2) {
-	word_t *w1 = *(word_t **)p1;
-	word_t *w2 = *(word_t **)p2;
+	word_t *w1 = *(word_t * const *)p1;
+	word_t *w2 = *(word_t * const *)p2;
 	int w1_len=strlen(w1->text);
 	int w2_len=strlen(w2->text);
 	if (w1_len == w2_len)
@@ -1026,7 +794,7 @@ build_regexps(domain_t *domain) {
 				if (a->next) strcat(buffer,"|");
 			}
 			strcat(buffer,")");
-			strcat(buffer,"[ 	]+");
+			strcat(buffer,"[\t ]+");
 			log_debug(">>> %s %s prefix regexp=%s\n", domain->name, g->name, buffer);
 			build_regexp(&g->prefix_regexp, buffer);
 		}
@@ -1071,7 +839,7 @@ build_regexps(domain_t *domain) {
 		log_debug(">>> %s %s modifier regexp=%s\n", domain->name, g->name, buffer);
 		build_regexp(&g->word_regexp, buffer);
 		if (g->suffixes) {
-			strcat(buffer,"[ 	]+");
+			strcat(buffer,"[\t ]+");
 			strcat(buffer,"(?:");
 			for (a = g->suffixes; a; a = a->next) {
 				strcat(buffer, a->text);
@@ -1125,7 +893,7 @@ compute_raw_from_trans(const char *level, domain_t *domain) {
 	if (rc > 0) {
 		match = NULL;
 		pcre_get_substring(work, ovector, rc, 0, &match);
-		log_debug(" compute_raw_from_trans match = %s len = %u\n", match, strlen(match));
+		log_debug(" compute_raw_from_trans match = %s len = %lu\n", match, strlen(match));
 		base_classification_t *bc;
 		for (bc = domain->base_classifications; bc; bc = bc->next) {
 			if (!strcmp(bc->trans, match)) {
@@ -1143,7 +911,7 @@ compute_raw_from_trans(const char *level, domain_t *domain) {
 
 		memset(work + ovector[0], '#', ovector[1] - ovector[0]);
 		char *p=work + ovector[0] + ovector[1];
-		while (*p && (strchr(" 	", *p) != NULL))
+		while (*p && (strchr("	", *p) != NULL))
 			*p++ = '#';
 		pcre_free((char *)match);
 		match = NULL;
@@ -1182,9 +950,9 @@ compute_raw_from_trans(const char *level, domain_t *domain) {
 
 /* anchors prefix ^, suffix $ */
 			if (((!g->prefixes && !g->suffixes) ||
-			     (g->prefixes && prefix) ||
-			     (g->suffixes && suffix)) &&
-			     g->word_regexp) {
+				 (g->prefixes && prefix) ||
+				 (g->suffixes && suffix)) &&
+				 g->word_regexp) {
 				char *s = work + prefix_offset + prefix_len;
 				int l = (suffix_len ? suffix_offset : work_len) - prefix_len - prefix_offset;
 				rc = pcre_exec(g->word_regexp, 0, s, l, 0, 0, ovector, OVECCOUNT);
@@ -1301,7 +1069,7 @@ compute_trans_from_raw(const char *level, domain_t *domain) {
 
 	if (!level)
 		goto err;
-	
+
 	l = parse_raw(level);
 	if (!l)
 		goto err;
@@ -1314,16 +1082,14 @@ compute_trans_from_raw(const char *level, domain_t *domain) {
 		goto err;
 	}
 
-	int doInverse = l->sens > 0;
-
 	base_classification_t *bc, *last = NULL;
 	int done = 0;
 	for (bc = domain->base_classifications; bc && !done; bc = bc->next) {
 		if (l->sens == bc->level->sens) {
 			/* skip if alias of last bc */
 			if (last &&
-			    last->level->sens == bc->level->sens &&
-			    ebitmap_cmp(&last->level->cat, &bc->level->cat) == 0)
+				last->level->sens == bc->level->sens &&
+				ebitmap_cmp(&last->level->cat, &bc->level->cat) == 0)
 				continue;
 
 			/* compute bits not consumed by base classification */
@@ -1366,12 +1132,6 @@ compute_trans_from_raw(const char *level, domain_t *domain) {
 				for (g = domain->groups; g && hamming; g = g->next) {
 					word_t *w;
 					for (w = g->words; w && hamming; w = w->next) {
-						int cardinality = ebitmap_cardinality(&w->normal);
-						/* If the word is all inverse bits and the level does not have inverse bits - skip */
-						if (cardinality && !doInverse) {
-							continue;
-						}
-
 						/* if only unhandled bits are different */
 						if (ebitmap_or(&temp, &w->normal, &w->inverse) < 0)
 							goto err;
@@ -1489,6 +1249,25 @@ err:
 	return NULL;
 }
 
+/* returns 0 even if no match was found (out == NULL) */
+int
+trans_level(domain_t *domain, const char *level, char **out) {
+	/* 1. absolute match */
+	*out = find_in_hashtable(level, domain, domain->raw_to_trans);
+	if (*out == NULL) {
+		/* group match */
+		*out = compute_trans_from_raw(level, domain);
+		if (*out != NULL) {
+			if (add_cache(domain, level, *out) < 0) {
+				free(*out);
+				return -1;
+			}
+		}
+	}
+
+	return 0;
+}
+
 int
 trans_context(const char *incon, char **rcon) {
 	char *trans = NULL;
@@ -1503,91 +1282,79 @@ trans_context(const char *incon, char **rcon) {
 	char *range = extract_range(incon);
 	if (!range) return -1;
 
+	/*
+	 * In the order of every domain in setrans.conf check:
+	 * 1. Check absolute matches for the entire range e.g. `s0=low`
+	 * 2. Check absolute matches for each part of the range
+	 * */
+
 	domain_t *domain = domains;
-	for (;domain; domain = domain->next) {
+	for (;domain && trans == NULL; domain = domain->next) {
 		trans = find_in_hashtable(range, domain, domain->raw_to_trans);
-		if (trans) break;
-
-		/* try split and translate */
-		char *lrange = NULL, *urange = NULL;
-		char *ltrans = NULL, *utrans = NULL;
-		char *dashp = strchr(range,'-');
-		if (dashp) {
-			*dashp = 0;
-			lrange = range;
-			urange = dashp+1;
-		} else {
-			trans = compute_trans_from_raw(range, domain);
-			if (trans)
-				if (add_cache(domain, range, trans) < 0) {
-					free(range);
-					return -1;
-				}
-		}
-
-		if (lrange && urange) {
-			ltrans = find_in_hashtable(lrange, domain, domain->raw_to_trans);
-			if (! ltrans) {
-				ltrans = compute_trans_from_raw(lrange, domain);
-				if (ltrans) {
-					if (add_cache(domain, lrange, ltrans) < 0) {
-						free(range);
-						return -1;
-					}
-				} else {
-					ltrans = strdup(lrange);
-					if (! ltrans) {
-						log_error("strdup failed %s", strerror(errno));
-						free(range);
-						return -1;
-					}
-				}
-			}
-
-			utrans = find_in_hashtable(urange, domain, domain->raw_to_trans);
-			if (! utrans) {
-				utrans = compute_trans_from_raw(urange, domain);
-				if (utrans) {
-					if (add_cache(domain, urange, utrans) < 0) {
-						free(ltrans);
-						free(range);
-						return -1;
-					}
-				} else {
-					utrans = strdup(urange);
-					if (! utrans) {
-						log_error("strdup failed %s", strerror(errno));
-						free(ltrans);
-						free(range);
-						return -1;
-					}
-				}
-			}
-
-			if (strcmp(ltrans, utrans) == 0) {
-				if (asprintf(&trans, "%s", ltrans) < 0) {
-					log_error("asprintf failed %s", strerror(errno));
-					free(utrans);
-					free(ltrans);
-					free(range);
-					return -1;
-				}
-			} else {
-				if (asprintf(&trans, "%s-%s", ltrans, utrans) < 0) {
-					log_error("asprintf failed %s", strerror(errno));
-					free(utrans);
-					free(ltrans);
-					free(range);
-					return -1;
-				}
-			}
-			free(ltrans);
-			free(utrans);
-			*dashp = '-';
+		if (trans != NULL) {
 			break;
 		}
-		if (dashp)
-			*dashp = '-';
+
+		char *dashp = strchr(range, '-');
+		if (dashp == NULL) {
+			/* single level object */
+			if (trans_level(domain, range, &trans) < 0) {
+				free(range);
+				return -1;
+			}
+		} else {
+			/* ranged ohject */
+			*dashp = 0;
+
+			const char * const lrange = range, *urange = dashp + 1;
+			char *ltrans = NULL, *utrans = NULL;
+
+			/* low level */
+			if (trans_level(domain, lrange, &ltrans) < 0) {
+				free(range);
+				return -1;
+			}
+
+			if (!ltrans) {
+				log_debug("[%s] ltrans failed for '%s'\n", domain->name, lrange);
+
+				/* fail early */
+				*dashp = '-';
+				continue;
+			}
+
+			/* high level */
+			if (trans_level(domain, urange, &utrans) < 0) {
+				if (ltrans) {
+					free(ltrans);
+				}
+
+				free(range);
+				return -1;
+			}
+
+			if (!utrans) {
+				log_debug("[%s] utrans failed for '%s'\n", domain->name, urange);
+
+				/* fail early */
+				*dashp = '-';
+				continue;
+			}
+
+			// assert(ltrans != NULL);
+			// assert(utrans != NULL);
+
+			if (asprintf(&trans, "%s - %s", ltrans, utrans) < 0) {
+				log_error("asprintf failed %s", strerror(errno));
+				free(ltrans);
+				free(utrans);
+				free(range);
+				return -1;
+			}
+
+			free(ltrans);
+			free(utrans);
+		}
 	}
 
 	if (trans) {
@@ -1612,6 +1379,44 @@ trans_context(const char *incon, char **rcon) {
 	return 0;
 }
 
+/* returns 0 even if no match was found (out == NULL) */
+int
+untrans_level(domain_t *domain, const char *level, char **out) {
+	/* 1. absolute match */
+	*out = find_in_hashtable(level, domain, domain->trans_to_raw);
+	if (*out == NULL) {
+		*out = compute_raw_from_trans(level, domain);
+
+		if (*out != NULL) {
+			/* find if we have the trans context that is a direct mapping to the
+			 * raw context */
+			char * canonical = find_in_hashtable(*out, domain, domain->raw_to_trans);
+			if (canonical == NULL) {
+				canonical = compute_trans_from_raw(*out, domain);
+				if (canonical && strcmp(canonical, level)) {
+					if (add_cache(domain, *out, level) < 0) {
+						free(*out);
+						*out = NULL;
+						return -1;
+					}
+				}
+			}
+
+			if (canonical != NULL) {
+				free(canonical);
+			}
+
+			if (add_cache(domain, *out, level) < 0) {
+				free(*out);
+				*out = NULL;
+				return -1;
+			}
+		}
+	}
+
+	return 0;
+}
+
 int
 untrans_context(const char *incon, char **rcon) {
 	char *raw = NULL;
@@ -1628,132 +1433,91 @@ untrans_context(const char *incon, char **rcon) {
 	log_debug(" untrans_context range = %s\n", range);
 
 	domain_t *domain = domains;
-	for (;domain; domain = domain->next) {
+	for (;domain && raw == NULL; domain = domain->next) {
 		raw = find_in_hashtable(range, domain, domain->trans_to_raw);
-		if (raw) break;
-
-		/* try split and translate */
-		char *lrange = NULL, *urange = NULL;
-		char *lraw = NULL, *uraw = NULL;
-		char *dashp = strchr(range,'-');
-		if (dashp) {
-			*dashp = 0;
-			lrange = range;
-			urange = dashp+1;
-		} else {
-			raw = compute_raw_from_trans(range, domain);
-			if (raw) {
-				char *canonical = find_in_hashtable(raw, domain, domain->raw_to_trans);
-				if (!canonical) {
-					canonical = compute_trans_from_raw(raw, domain);
-					if (canonical && strcmp(canonical, range))
-						if (add_cache(domain, raw, canonical) < 0) {
-							free(range);
-							return -1;
-						}
-				}
-				if (canonical)
-					free(canonical);
-				if (add_cache(domain, raw, range) < 0) {
-					free(range);
-					return -1;
-				}
-			} else {
-				log_debug("untrans_context unable to compute raw context %s\n", range);
-			}
-		}
-
-		if (lrange && urange) {
-			lraw = find_in_hashtable(lrange, domain, domain->trans_to_raw);
-			if (! lraw) {
-				lraw = compute_raw_from_trans(lrange, domain);
-				if (lraw) {
-					char *canonical = find_in_hashtable(lraw, domain, domain->raw_to_trans);
-					if (!canonical) {
-						canonical = compute_trans_from_raw(lraw, domain);
-						if (canonical)
-							if (add_cache(domain, lraw, canonical) < 0) {
-								free(lraw);
-								free(range);
-								return -1;
-							}
-					}
-					if (canonical)
-						free(canonical);
-					if (add_cache(domain, lraw, lrange) < 0) {
-						free(lraw);
-						free(range);
-						return -1;
-					}
-				} else {
-					lraw = strdup(lrange);
-					if (! lraw) {
-						log_error("strdup failed %s", strerror(errno));
-						free(range);
-						return -1;
-					}
-				}
-			}
-
-			uraw = find_in_hashtable(urange, domain, domain->trans_to_raw);
-			if (! uraw) {
-				uraw = compute_raw_from_trans(urange, domain);
-				if (uraw) {
-					char *canonical = find_in_hashtable(uraw, domain, domain->raw_to_trans);
-					if (!canonical) {
-						canonical = compute_trans_from_raw(uraw, domain);
-						if (canonical)
-							if (add_cache(domain, uraw, canonical) < 0) {
-								free(uraw);
-								free(lraw);
-								free(range);
-								return -1;
-							}
-					}
-					if (canonical)
-						free(canonical);
-					if (add_cache(domain, uraw, urange) < 0) {
-						free(uraw);
-						free(lraw);
-						free(range);
-						return -1;
-					}
-				} else {
-					uraw = strdup(urange);
-					if (! uraw) {
-						log_error("strdup failed %s", strerror(errno));
-						free(lraw);
-						free(range);
-						return -1;
-					}
-				}
-			}
-
-
-			if (strcmp(lraw, uraw) == 0) {
-				if (asprintf(&raw, "%s", lraw) < 0) {
-					log_error("asprintf failed %s", strerror(errno));
-					free(uraw);
-					free(lraw);
-					free(range);
-					return -1;
-				}
-			} else {
-				if (asprintf(&raw, "%s-%s", lraw, uraw) < 0) {
-					log_error("asprintf failed %s", strerror(errno));
-					free(uraw);
-					free(lraw);
-					free(range);
-					return -1;
-				}
-			}
-			free(lraw);
-			free(uraw);
-			*dashp = '-';
+		if (raw != NULL) {
 			break;
 		}
-		if (dashp)
-			*dashp = '-';
+
+		/* try split and translate */
+		char *dashp = strchr(range,'-');
+		if (dashp == NULL) {
+			if (untrans_level(domain, range, &raw) < 0) {
+				free(range);
+				return -1;
+			}
+		} else {
+			/* Complicated: ranged object */
+			*dashp = 0;
+
+			char *lrange = range, *urange = dashp +1;
+			char *lraw = NULL, *uraw = NULL;
+
+			/* remove leading and trailing whitespace arount the delimiter */
+			if (*(dashp - 1) == ' ') {
+				*(dashp - 1) = 0;
+			}
+
+			if (*urange == ' ') {
+				*(urange) = 0;
+				urange++;
+			}
+
+			/* 1. low range */
+			if (untrans_level(domain, lrange, &lraw) < 0) {
+				free(range);
+				return -1;
+			}
+
+			if (lraw == NULL) {
+				/* fail early */
+				*dashp = '-';
+
+				if (*(dashp - 1) == 0) {
+					*(dashp - 1) = ' ';
+				}
+
+				if (urange == dashp + 2) {
+					*(urange - 1) = ' ';
+				}
+
+				continue;
+			}
+
+			if (untrans_level(domain, urange, &uraw) < 0) {
+				free(range);
+				free(lraw);
+				return -1;
+			}
+
+			if (uraw == NULL) {
+				/* fail early */
+				free(lraw);
+				*dashp = '-';
+
+				if (*(dashp - 1) == 0) {
+					*(dashp - 1) = ' ';
+				}
+
+				if (urange == dashp + 2) {
+					*(urange - 1) = ' ';
+				}
+
+				continue;
+			}
+
+			// assert(lraw != NULL);
+			// assert(uraw != NULL);
+
+			if (asprintf(&raw, "%s-%s", lraw, uraw) < 0) {
+				log_error("asprintf failed %s", strerror(errno));
+				free(uraw);
+				free(lraw);
+				free(range);
+				return -1;
+
+			}
+		}
 	}
 
 	if (raw) {
@@ -1778,22 +1542,14 @@ untrans_context(const char *incon, char **rcon) {
 	return 0;
 }
 
+/* cleanup and free any remaining memory */
 void
 finish_context_translations(void) {
-	while(domains) {
+	while(domains != NULL) {
 		domain_t *next = domains->next;
 		destroy_domain(domains);
 		domains = next;
 	}
-	while(sens_constraints) {
-		sens_constraint_t *next = sens_constraints->next;
-		destroy_sens_constraint(&sens_constraints, sens_constraints);
-		sens_constraints = next;
-	}
-	while(cat_constraints) {
-		cat_constraint_t *next = cat_constraints->next;
-		destroy_cat_constraint(&cat_constraints, cat_constraints);
-		cat_constraints = next;
-	}
-}
 
+	finish_constraints();
+}

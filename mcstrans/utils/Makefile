@@ -13,13 +13,13 @@ endif
 
 all: $(TARGETS)
 
-transcon: transcon.o ../src/mcstrans.o ../src/mls_level.o $(LIBSEPOLA)
+transcon: transcon.o ../src/mcstrans.o ../src/mls_level.o ../src/util.o ../src/constraints.o $(LIBSEPOLA)
 	$(CC) $(LDFLAGS) -o $@ $^ -lpcre -lselinux $(LDLIBS_LIBSEPOLA)
 
-untranscon: untranscon.o ../src/mcstrans.o ../src/mls_level.o $(LIBSEPOLA)
+untranscon: untranscon.o ../src/mcstrans.o ../src/mls_level.o ../src/util.o ../src/constraints.o $(LIBSEPOLA)
 	$(CC) $(LDFLAGS) -o $@ $^ -lpcre -lselinux $(LDLIBS_LIBSEPOLA)
 
-%.o:  %.c 
+%.o:  %.c
 	$(CC) $(CFLAGS) -D_GNU_SOURCE -I../src -fPIE -c -o $@ $<
 
 install: all
