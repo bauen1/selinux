@@ -154,7 +154,7 @@ typedef int (* require_func_t)(int pass);
 %token PERMISSIVE
 %token FILESYSTEM
 %token DEFAULT_USER DEFAULT_ROLE DEFAULT_TYPE DEFAULT_RANGE
-%token LOW_HIGH LOW HIGH GLBLUB
+%token LOW_HIGH LOW HIGH GLBLUB GLBLUB_TRUE
 
 %left OR
 %left XOR
@@ -248,6 +248,8 @@ default_range_def	: DEFAULT_RANGE names SOURCE LOW ';'
 			{if (define_default_range(DEFAULT_TARGET_LOW_HIGH)) return -1; }
 			| DEFAULT_RANGE names GLBLUB';'
 			{if (define_default_range(DEFAULT_GLBLUB)) return -1; }
+			| DEFAULT_RANGE names GLBLUB_TRUE';'
+			{if (define_default_range(DEFAULT_GLBLUB_TRUE)) return -1; }
 			;
 opt_mls			: mls
                         | 

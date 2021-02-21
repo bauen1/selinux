@@ -135,6 +135,7 @@ char *CIL_KEY_LOW;
 char *CIL_KEY_HIGH;
 char *CIL_KEY_LOW_HIGH;
 char *CIL_KEY_GLBLUB;
+char *CIL_KEY_GLBLUB_TRUE;
 char *CIL_KEY_HANDLEUNKNOWN;
 char *CIL_KEY_HANDLEUNKNOWN_ALLOW;
 char *CIL_KEY_HANDLEUNKNOWN_DENY;
@@ -372,6 +373,7 @@ static void cil_init_keys(void)
 	CIL_KEY_HIGH = cil_strpool_add("high");
 	CIL_KEY_LOW_HIGH = cil_strpool_add("low-high");
 	CIL_KEY_GLBLUB = cil_strpool_add("glblub");
+	CIL_KEY_GLBLUB_TRUE = cil_strpool_add("glblub_true");
 	CIL_KEY_ROOT = cil_strpool_add("<root>");
 	CIL_KEY_NODE = cil_strpool_add("<node>");
 	CIL_KEY_PERM = cil_strpool_add("perm");

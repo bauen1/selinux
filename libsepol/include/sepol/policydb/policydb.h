@@ -131,6 +131,7 @@ typedef struct class_datum {
 #define DEFAULT_TARGET_HIGH	5
 #define DEFAULT_TARGET_LOW_HIGH	6
 #define DEFAULT_GLBLUB 		7
+#define DEFAULT_GLBLUB_TRUE	8
 	char default_range;
 } class_datum_t;
 
@@ -756,10 +757,11 @@ extern int policydb_set_target_platform(policydb_t *p, int platform);
 #define POLICYDB_VERSION_INFINIBAND		31 /* Linux-specific */
 #define POLICYDB_VERSION_GLBLUB		32
 #define POLICYDB_VERSION_COMP_FTRANS	33 /* compressed filename transitions */
+#define POLICYDB_VERSION_GLBLUB_TRUE	34
 
 /* Range of policy versions we understand*/
 #define POLICYDB_VERSION_MIN	POLICYDB_VERSION_BASE
-#define POLICYDB_VERSION_MAX	POLICYDB_VERSION_COMP_FTRANS
+#define POLICYDB_VERSION_MAX	POLICYDB_VERSION_GLBLUB_TRUE
 
 /* Module versions and specific changes*/
 #define MOD_POLICYDB_VERSION_BASE		4
@@ -781,9 +783,10 @@ extern int policydb_set_target_platform(policydb_t *p, int platform);
 #define MOD_POLICYDB_VERSION_XPERMS_IOCTL  18
 #define MOD_POLICYDB_VERSION_INFINIBAND		19
 #define MOD_POLICYDB_VERSION_GLBLUB		20
+#define MOD_POLICYDB_VERSION_GLBLUB_TRUE		21
 
 #define MOD_POLICYDB_VERSION_MIN MOD_POLICYDB_VERSION_BASE
-#define MOD_POLICYDB_VERSION_MAX MOD_POLICYDB_VERSION_GLBLUB
+#define MOD_POLICYDB_VERSION_MAX MOD_POLICYDB_VERSION_GLBLUB_TRUE
 
 #define POLICYDB_CONFIG_MLS    1
 

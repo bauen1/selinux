@@ -838,6 +838,9 @@ static void cil_default_ranges_to_policy(FILE *out, struct cil_list *defaults)
 		case CIL_DEFAULT_GLBLUB:
 			fprintf(out," %s", CIL_KEY_GLBLUB);
 			break;
+		case CIL_DEFAULT_GLBLUB_TRUE:
+			fprintf(out," %s", CIL_KEY_GLBLUB_TRUE);
+			break;
 		default:
 			break;
 		}

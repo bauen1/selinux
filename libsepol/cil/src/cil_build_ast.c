@@ -5935,8 +5935,10 @@ int cil_gen_defaultrange(struct cil_tree_node *parse_current, struct cil_tree_no
 		}
 	} else if (object == CIL_KEY_GLBLUB) {
 		def->object_range = CIL_DEFAULT_GLBLUB;
+	} else if (object == CIL_KEY_GLBLUB_TRUE) {
+		def->object_range = CIL_DEFAULT_GLBLUB_TRUE;
 	} else {
-		cil_log(CIL_ERR,"Expected \'source\', \'target\', or \'glblub\'\n");
+		cil_log(CIL_ERR,"Expected \'source\', \'target\', \'glblub\' or \'glblub_true\'\n");
 		rc = SEPOL_ERR;
 		goto exit;
 	}

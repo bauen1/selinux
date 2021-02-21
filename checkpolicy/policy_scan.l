@@ -260,6 +260,8 @@ low |
 LOW				{ return(LOW); }
 glblub |
 GLBLUB				{ return(GLBLUB); }
+glblub_true |
+GLBLUB_TRUE				{ return (GLBLUB_TRUE); }
 "/"[^ \n\r\t\f]*	        { return(PATH); }
 \""/"[^\"\n]*\" 		{ return(QPATH); }
 \"[^"/"\"\n]+\"	{ return(FILENAME); }

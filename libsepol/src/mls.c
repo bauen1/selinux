@@ -645,6 +645,8 @@ int mls_compute_sid(policydb_t * policydb,
 			return mls_context_cpy(newcontext, tcontext);
 		case DEFAULT_GLBLUB:
 			return mls_context_glblub(newcontext, scontext, tcontext);
+		case DEFAULT_GLBLUB_TRUE:
+			return mls_context_glblub_true(newcontext, scontext, tcontext);
 		}
 
 		/* Fallthrough */

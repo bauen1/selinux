@@ -2034,6 +2034,7 @@ static int class_to_cil(int indent, struct policydb *pdb, struct avrule_block *U
 		case DEFAULT_TARGET_HIGH:		dflt = "target high";	break;
 		case DEFAULT_TARGET_LOW_HIGH:	dflt = "target low-high";	break;
 		case DEFAULT_GLBLUB:		dflt = "glblub";		break;
+		case DEFAULT_GLBLUB_TRUE:		dflt = "glblub_true";	break;
 		default:
 			log_err("Unknown default range value: %i", class->default_range);
 			rc = -1;

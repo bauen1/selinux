@@ -73,6 +73,29 @@ static inline int mls_range_glblub(struct mls_range *dst, struct mls_range *r1, 
 	return 0;
 }
 
+static inline int mls_range_glblub_true(struct mls_range *dst, struct mls_range *r1, struct mls_range *r2)
+{
+	if (r1->level[1].sens < r2->level[0].sens || r2->level[1].sens < r1->level[0].sens) {
+		/* These ranges have no common sensitivities */
+		return -EINVAL;
+	}
+
+	/* Take the greatest of the low */
+	dst->level[0].sens = MAX(r1->level[0].sens, r2->level[0].sens);
+
+	if (ebitmap_or(&dst->level[0].cat, &r1->level[0].cat, &r2->level[0].cat) < 0) {
+		return -1;
+	}
+
+	/* Take the least of the high */
+	dst->level[1].sens = MIN(r1->level[1].sens, r2->level[1].sens);
+
+	if (ebitmap_and(&dst->level[1].cat, &r1->level[1].cat, &r2->level[1].cat) < 0) {
+		return -1;
+	}
+
+	return 0;
+}
 
 static inline int mls_level_cpy(struct mls_level *dst, struct mls_level *src)
 {

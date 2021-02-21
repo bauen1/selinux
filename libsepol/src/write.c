@@ -49,6 +49,10 @@
 		     p->policyvers >= POLICYDB_VERSION_GLBLUB) || \
 		    (p->policy_type == POLICY_BASE && \
 		     p->policyvers >= MOD_POLICYDB_VERSION_GLBLUB))
+#define glblub_true_version ((p->policy_type == POLICY_KERN && \
+		     p->policyvers >= POLICYDB_VERSION_GLBLUB_TRUE) || \
+		    (p->policy_type == POLICY_BASE && \
+		     p->policyvers >= MOD_POLICYDB_VERSION_GLBLUB_TRUE))
 
 struct policy_data {
 	struct policy_file *fp;
@@ -1104,6 +1108,13 @@ static int class_write(hashtab_key_t key, hashtab_datum_t datum, void *ptr)
                              "class %s default_range set to GLBLUB but policy version is %d (%d required), discarding",
                              p->p_class_val_to_name[cladatum->s.value - 1], p->policyvers,
                              p->policy_type == POLICY_KERN? POLICYDB_VERSION_GLBLUB:MOD_POLICYDB_VERSION_GLBLUB);
+                        cladatum->default_range = 0;
+                }
+		if (!glblub_true_version && cladatum->default_range == DEFAULT_GLBLUB_TRUE) {
+			WARN(fp->handle,
+                             "class %s default_range set to GLBLUB_TRUE but policy version is %d (%d required), discarding",
+                             p->p_class_val_to_name[cladatum->s.value - 1], p->policyvers,
+                             p->policy_type == POLICY_KERN? POLICYDB_VERSION_GLBLUB_TRUE:MOD_POLICYDB_VERSION_GLBLUB_TRUE);
                         cladatum->default_range = 0;
                 }
 		buf[2] = cpu_to_le32(cladatum->default_range);

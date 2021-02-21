@@ -202,6 +202,13 @@ static struct policydb_compat_info policydb_compat[] = {
 	},
 	{
 	 .type = POLICY_KERN,
+	 .version = POLICYDB_VERSION_GLBLUB_TRUE,
+	 .sym_num = SYM_NUM,
+	 .ocon_num = OCON_IBENDPORT + 1,
+	 .target_platform = SEPOL_TARGET_SELINUX,
+	},
+	{
+	 .type = POLICY_KERN,
 	 .version = POLICYDB_VERSION_COMP_FTRANS,
 	 .sym_num = SYM_NUM,
 	 .ocon_num = OCON_IBENDPORT + 1,
@@ -327,6 +334,13 @@ static struct policydb_compat_info policydb_compat[] = {
 	 .target_platform = SEPOL_TARGET_SELINUX,
 	},
 	{
+	 .type = POLICY_BASE,
+	 .version = MOD_POLICYDB_VERSION_GLBLUB_TRUE,
+	 .sym_num = SYM_NUM,
+	 .ocon_num = OCON_IBENDPORT + 1,
+	 .target_platform = SEPOL_TARGET_SELINUX,
+	},
+	{
 	 .type = POLICY_MOD,
 	 .version = MOD_POLICYDB_VERSION_BASE,
 	 .sym_num = SYM_NUM,
@@ -445,7 +459,13 @@ static struct policydb_compat_info policydb_compat[] = {
 	 .ocon_num = 0,
 	 .target_platform = SEPOL_TARGET_SELINUX,
 	},
-
+	{
+	  .type = POLICY_MOD,
+	  .version = MOD_POLICYDB_VERSION_GLBLUB_TRUE,
+	  .sym_num = SYM_NUM,
+	  .ocon_num = 0,
+	  .target_platform = SEPOL_TARGET_SELINUX,
+	},
 };
 
 #if 0

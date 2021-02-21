@@ -705,6 +705,9 @@ static int write_default_range_to_cil(FILE *out, char *class_name, class_datum_t
 	case DEFAULT_GLBLUB:
 		dft = "glblub";
 		break;
+	case DEFAULT_GLBLUB_TRUE:
+		dft = "glblub_true";
+		break;
 	default:
 		sepol_log_err("Unknown default type value: %i", class->default_range);
 		return -1;
